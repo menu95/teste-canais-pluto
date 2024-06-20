@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebTV</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
+    <style>
+        .hidden {
+            display: none;
+        }
+        #player-container {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="player-container"></div>
+    <div id="channel-list">
+        <ul>
+            <li data-src="https://service-stitcher.clusters.pluto.tv/v1/stitch/embed/hls/channel/62545c0b002f4b0007688b61/master.m3u8?advertisingId={PSID}&appVersion=unknown&deviceDNT={TARGETOPT}&deviceId={PSID}&deviceLat=0&deviceLon=0&deviceMake=samsung&deviceModel=samsung&deviceType=samsung-tvplus&deviceVersion=unknown" data-type="m3u8" data-channel="bob-esponja">
+                <img src="" alt="Bob Esponja">
+                <div class="channel-info">
+                    <div class="channel-title">Bob Esponja</div>
+                    <span class="program-info"></span>
+                </div>
+            </li>
+            <li data-src="https://service-stitcher.clusters.pluto.tv/v1/stitch/embed/hls/channel/63221e41af69b500076f84e7/master.m3u8?deviceId=channel&deviceModel=web&deviceVersion=1.0&appVersion=1.0&deviceType=rokuChannel&deviceMake=rokuChannel&deviceDNT=18" data-type="m3u8" data-channel="os-padrinhos-magicos">
+                <img src="https://pm1.aminoapps.com/6521/c912be7f39bd142b2a5a581b61374bd75c48f504_hq.jpg" alt="Os Padrinhos Mágicos">
+                <div class="channel-info">
+                    <div class="channel-title">Os Padrinhos Mágicos</div>
+                    <span class="program-info"></span>
+                </div>
+            </li>
+            <li data-src="https://stream.ichibantv.com:3764/hybrid/play.m3u8" data-type="m3u8" data-channel="nick-classicos">
+                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRwYn2PrsXrdl_NLY1O9zr0U7lhvWLMXktCcQ&usqp=CAU" alt="Nick Classicos">
+                <div class="channel-info">
+                    <div class="channel-title">Geekdot</div>
+                    <span class="program-info"></span>
+                </div>
+            </li>
+            <li data-src="https://stmv1.srvif.com/jetsontv/jetsontv/playlist.m3u8" data-type="m3u8" data-channel="os-jetsons-24h">
+                <img src="https://upload.wikimedia.org/wikipedia/pt/thumb/a/aa/Jetsons.jpg/250px-Jetsons.jpg" alt="Os Jetsons 24h">
+                <div class="channel-info">
+                    <div class="channel-title">Os Jetsons 24h</div>
+                    <span class="program-info"></span>
+                </div>
+            </li>
+        </ul>
+    </div>
+    <div id="epg">
+        <div id="epg-header">EPG Diário</div>
+        <ul id="epg-list">
+            <!-- Programações serão inseridas aqui dinamicamente -->
+        </ul>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const playerContainer = document.getElementById('player-container');
+            let currentPlayer = null;
+            let currentIndex = 0;
+            const channelList = document.getElementById('channel-list');
+            const channelItems = channelList.querySelectorAll('li');
+            const epg = document.getElementById('epg');
+            let closeListTimeout;
+
+            const updateVisualSelection = () => {
+                channelItems.forEach((item, index) => {
+                    if (index === currentIndex) {
+                        item.classList.add('selected');
+                    } else {
+                        item.classList.remove('selected');
+                    }
+                });
+            };
+
+            const updateVideoSource = () => {
+                const selectedItem = channelItems[currentIndex];
+                const newSrc = selectedItem.getAttribute('data-src');
+                const newType = selectedItem.getAttribute('data-type');
+
+                stopCurrentPlayer();
+
+                if (newType === 'm3u8') {
+                    currentPlayer = new Clappr.Player({
+                        source: newSrc,
+                        parentId: '#player-container',
+                        autoPlay: true,
+                        mute: false,
+                        height: '100%',
+                        width: '100%',
+                        playback: {
+                            controls: true,
+                            hlsjsConfig: {}
+                        }
+                    });
+                }
+            };
+
+            const stopCurrentPlayer = () => {
+                if (currentPlayer) {
+                    currentPlayer.destroy();
+                    currentPlayer = null;
+                }
+            };
+
+            const startCloseListTimeout = () => {
+                clearTimeout(closeListTimeout);
+                closeListTimeout = setTimeout(() => {
+                    channelList.style.left = '-300px';
+                }, 4000);
+            };
+
+            const updateProgramInfo = () => {
+                fetch('epg.json')
+                    .then(response => response.json())
+                    .then(data => {
+                        channelItems.forEach(item => {
+                            const channel = item.getAttribute('data-channel');
+                            const programInfoElement = item.querySelector('.program-info');
+                            if (data[channel] && data[channel].length > 0) {
+                                programInfoElement.textContent = data[channel][0].title;
+                            } else {
+                                programInfoElement.textContent = '';
+                            }
+                        });
+                    })
+                    .catch(error => console.error('Error fetching EPG data:', error));
+            };
+
+            updateVisualSelection();
+            updateProgramInfo();
+
+            const openChannelMenu = () => {
+                if (channelList.style.left === '0px') {
+                    updateVideoSource();
+                    channelList.style.left = '-300px';
+                } else {
+                    channelList.style.left = '0';
+                    startCloseListTimeout();
+                }
+            };
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === 'Backspace') {
+                    openChannelMenu();
+                } else if (e.key === 'ArrowDown') {
+                    if (channelList.style.left === '0px') {
+                        currentIndex = (currentIndex + 1) % channelItems.length;
+                        updateVisualSelection();
+                        startCloseListTimeout();
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    if (channelList.style.left === '0px') {
+                        currentIndex = (currentIndex - 1 + channelItems.length) % channelItems.length;
+                        updateVisualSelection();
+                        startCloseListTimeout();
+                    }
+                } else if (e.key === 'ArrowRight') {
+                    if (channelList.style.left === '0px') {
+                        epg.style.right = '0';
+                        const selectedChannel = channelItems[currentIndex].getAttribute('data-channel');
+                        loadEPG(selectedChannel);
+                    }
+                } else if (e.key === 'ArrowLeft') {
+                    if (epg.style.right === '0px') {
+                        epg.style.right = '-300px';
+                    }
+                }
+            });
+
+            channelItems.forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    currentIndex = index;
+                    updateVisualSelection();
+                    updateVideoSource();
+                });
+            });
+
+            channelList.addEventListener('mousemove', startCloseListTimeout);
+        });
+    </script>
+</body>
+</html>
